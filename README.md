@@ -183,7 +183,7 @@ Generated questions store selected evidence passages and related metadata to sup
 ## Project Structure
 
 ```text
-multilingual-rag-main/
+AI-Interviewer/
 │
 ├── backend/
 │   └── app/
