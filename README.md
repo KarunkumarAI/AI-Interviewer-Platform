@@ -1,298 +1,535 @@
-# Internship assignment extension
+# Resume-Based AI Interview Platform
 
-The repository has been extended into a resume-based AI interview platform. See [README_INTERNSHIP.md](README_INTERNSHIP.md) for the assignment workflow, setup instructions, APIs and validation requirements. The original multilingual RAG documentation below is retained.
+An AI-powered, role-based technical interview platform built for the **AI/ML & Backend Engineering Intern Assignment**. The application uses a candidate's resume, selected job role, and role-specific textbook content to generate grounded technical interview questions, evaluate answers, and produce a structured interview report.
 
----
+**Repository:** https://github.com/KarunkumarAI/AI-Interviewer-Platform
 
-# Self-Healing Multilingual RAG & AI Assistant
+## Table of Contents
 
-**An end-to-end AI application for multilingual, document-grounded question answering with hybrid retrieval, self-healing workflows, voice interaction, and browser automation.**
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [How It Works](#how-it-works)
+- [Architecture](#architecture)
+- [Technology Stack](#technology-stack)
+- [Project Structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Local Setup on Windows](#local-setup-on-windows)
+- [Environment Configuration](#environment-configuration)
+- [Running the Application](#running-the-application)
+- [Using the Application](#using-the-application)
+- [API Overview](#api-overview)
+- [Data Storage](#data-storage)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [Security and Privacy Notes](#security-and-privacy-notes)
+- [Limitations and Future Improvements](#limitations-and-future-improvements)
 
-**Tech Stack:** Python · FastAPI · Streamlit · PostgreSQL · Qdrant · FastEmbed · BM25 · Reciprocal Rank Fusion (RRF) · OpenAI API · Gemini API · Tesseract OCR · Playwright · Pytest
+## Overview
 
-## Project Overview
+The platform simulates a structured technical interview for roles such as:
 
-Traditional Retrieval-Augmented Generation (RAG) applications can produce incomplete or unsupported answers when document retrieval fails, queries are ambiguous, or retrieved evidence is insufficient.
+- AI/ML Engineer
+- Backend Engineer
 
-This project explores a **self-healing RAG architecture** that detects retrieval and evidence problems, attempts bounded query repair and retrieval retries, and abstains when sufficient supporting information is unavailable.
+Instead of relying only on predefined questions, it constructs interview context from:
 
-The application combines document-based question answering with a general AI chatbot, multilingual interactions, conversation persistence, voice features, OCR, and browser automation.
+1. The candidate's uploaded resume.
+2. The selected target role.
+3. Relevant content retrieved from the role-specific knowledge base.
+
+The retrieved textbook passages are supplied to the language model during question generation. The application records evidence associated with generated questions so that the question can be traced back to retrieved knowledge-base content.
+
+The project also retains multilingual RAG assistant functionality from the original codebase, including document-grounded question answering and related assistant features.
 
 ## Key Features
 
-- **Multilingual AI:** English, Kannada, Hindi, and Telugu support with automatic language detection and manual selection.
-- **Hybrid Retrieval:** Combines dense semantic retrieval and BM25 sparse retrieval using Qdrant and Reciprocal Rank Fusion.
-- **Self-Healing RAG:** Retrieval failure detection, query repair, bounded retries, evidence checks, and safe abstention.
-- **Source-Aware Answers:** Document-grounded responses with supporting citations.
-- **Document Ingestion:** PDF, CSV, Excel, DOCX, TXT, Markdown, HTML, and supported web URLs.
-- **OCR Support:** Tesseract-based extraction for scanned or text-sparse PDFs.
-- **Voice Interaction:** Browser microphone input, speech-to-text, and text-to-speech support for four languages.
-- **Authentication and Memory:** Email-based authentication and PostgreSQL conversation persistence.
-- **LLM Integration:** Configurable language model providers including OpenAI and Gemini.
-- **Browser Automation:** Playwright-powered Google search, URL opening, and YouTube search/playback with URL safety checks.
-- **Testing and Security:** Automated tests, offline evaluation utilities, security headers, request-size protection, and browser URL validation.
+### Resume Processing
 
-## System Architecture
+- Accepts a candidate resume upload through the interview interface.
+- Supports PDF and text extraction through the backend document extraction module.
+- Extracts resume text for candidate-profile analysis.
+- Uses the selected role and resume content to identify skills, technologies, projects, domains, experience summary, and potential role gaps.
+
+### Role-Specific Knowledge Base
+
+- Supports document ingestion for the following knowledge-base categories:
+  - `Shared`
+  - `AI/ML Engineer`
+  - `Backend Engineer`
+- Extracts text from supported document formats.
+- Splits extracted text into overlapping chunks.
+- Creates dense and sparse embeddings.
+- Stores vectors and metadata in a local Qdrant collection.
+- Filters retrieval by the selected role while also allowing `Shared` knowledge-base content.
+
+**Important:** The assignment lists recommended books, but the repository does not include the full textbook contents. Upload the relevant book/document files through the application before starting a textbook-grounded interview. Only upload material you are permitted to use.
+
+### Hybrid RAG Retrieval
+
+The interview pipeline uses:
+
+- Dense semantic embeddings with FastEmbed.
+- Sparse BM25 retrieval.
+- Qdrant vector storage.
+- Reciprocal Rank Fusion (RRF) to combine retrieval results.
+- Role-aware retrieval using the candidate's account and selected role.
+
+The retrieved passages are provided to the question-generation process as supporting evidence.
+
+### Dynamic Interview Generation
+
+- Uses resume profile information and selected role.
+- Generates one question at a time.
+- Uses retrieved knowledge-base passages as grounding context.
+- Records question topic, difficulty, expected answer points, provider, rationale, and selected evidence.
+- Generates a five-question interview flow.
+- Uses previous answers as context when generating subsequent questions to reduce repetition and probe relevant areas.
+
+### Answer Evaluation and Interview Report
+
+- Accepts candidate answers through the interview interface.
+- Evaluates answers against expected answer points.
+- Produces a score, strengths, gaps, and feedback.
+- Stores submitted answers and evaluation output.
+- Provides a structured report with questions, answers, evidence, per-answer evaluation, and average score.
+
+The evaluation is an AI-assisted rubric assessment and should not be treated as an objective hiring decision.
+
+### Authentication and Persistence
+
+- Email-based registration and login.
+- Password hashing and token-based authentication.
+- User-associated interview sessions and interview records.
+- PostgreSQL persistence through SQLAlchemy.
+
+### Additional RAG Assistant Features
+
+The repository also contains the original multilingual RAG assistant modules, including:
+
+- English, Kannada, Hindi, and Telugu language support.
+- Document-grounded question answering.
+- Dense and sparse retrieval with RRF.
+- Self-healing retrieval logic and evidence checks.
+- Voice-related endpoints.
+- Browser automation endpoints.
+- A Streamlit frontend in the `frontend/` directory.
+
+These are additional capabilities in the repository; the assignment's interview UI is the React application in `frontend-react/`.
+
+## How It Works
 
 ```mermaid
 flowchart TD
-    A[User - Streamlit Interface] --> B[FastAPI Backend]
-    B --> C{Request Type}
-
-    C --> D[Document Ingestion]
-    C --> E[Knowledge RAG]
-    C --> F[General AI Chat]
-    C --> G[Voice and Browser Tools]
-
-    D --> H[Text Extraction and OCR]
-    H --> I[Chunking and Embeddings]
-    I --> J[(Qdrant Vector Store)]
-
-    E --> K[Multilingual Query Processing]
-    K --> L[Dense and BM25 Retrieval]
-    J --> L
-    L --> M[RRF Fusion]
-    M --> N[Evidence Validation]
-
-    N --> O{Evidence Sufficient?}
-    O -->|No| P[Bounded Query Repair and Retry]
-    P --> L
-    O -->|Yes| Q[LLM Answer Generation]
-    P -->|Retry Limit Reached| R[Safe Abstention]
-
-    Q --> S[Grounded Answer with Citations]
-    F --> T[Configured LLM Provider]
-
-    B --> U[(PostgreSQL - Users and Conversations)]
+    A[Candidate opens React application] --> B[Register or Login]
+    B --> C[Upload Resume]
+    C --> D[Backend extracts resume text]
+    D --> E[Select target role]
+    E --> F[Upload role-specific textbook documents]
+    F --> G[Text extraction and chunking]
+    G --> H[Dense and BM25 embeddings]
+    H --> I[(Local Qdrant knowledge base)]
+    D --> J[LLM creates candidate profile]
+    E --> K[Build role-aware retrieval query]
+    J --> K
+    I --> L[Hybrid retrieval with RRF]
+    K --> L
+    L --> M[Relevant evidence chunks]
+    M --> N[LLM generates grounded interview question]
+    N --> O[Store question and evidence in PostgreSQL]
+    O --> P[Candidate submits answer]
+    P --> Q[LLM evaluates answer]
+    Q --> R[Store answer and evaluation]
+    R --> S{Five questions completed?}
+    S -->|No| T[Generate next contextual question]
+    T --> O
+    S -->|Yes| U[Generate structured interview report]
 ```
 
-## How Self-Healing Retrieval Works
+## Architecture
 
-1. The user submits a document-related question.
-2. The system processes the query and retrieves relevant document chunks.
-3. Dense and sparse retrieval results are combined using RRF.
-4. Retrieved evidence is evaluated for relevance and sufficiency.
-5. If the evidence is inadequate, the system attempts query repair and bounded retrieval retries.
-6. If sufficient evidence is found, the LLM generates a source-grounded answer.
-7. If evidence remains insufficient, the system abstains instead of presenting unsupported information as fact.
+| Layer | Implementation | Responsibility |
+|---|---|---|
+| Frontend | React 18 + Vite | Resume upload, role selection, interview interaction, and report UI |
+| Backend | FastAPI | Authentication, API routes, interview lifecycle, document processing, and orchestration |
+| Resume/document processing | Python extraction module | Extract text from uploaded documents |
+| RAG pipeline | FastEmbed + Qdrant | Chunking, embeddings, hybrid retrieval, role filtering, and evidence retrieval |
+| LLM integration | Gemini, OpenRouter, or OpenAI adapters | Resume profile extraction, question generation, and answer evaluation |
+| Relational persistence | PostgreSQL + SQLAlchemy | Users, documents, interview sessions, questions, and answers |
+| Additional frontend | Streamlit | Original multilingual RAG assistant interface |
 
-The system is designed to reduce unsupported answers; it does not guarantee that hallucinations are impossible.
+### Interview Data Flow
+
+The core interview pipeline follows:
+
+`Resume + Selected Role → Candidate Profile → Retrieval Query → Knowledge Retrieval → Grounded Question → Candidate Answer → Evaluation → Report`
+
+Generated questions store selected evidence passages and related metadata to support traceability.
 
 ## Technology Stack
 
-| Component | Technology |
-|---|---|
-| Programming language | Python |
-| Backend API | FastAPI, Uvicorn |
-| Frontend | Streamlit |
-| Relational database | PostgreSQL |
-| Vector database | Qdrant |
-| Embeddings | Multilingual embedding model / FastEmbed |
-| Sparse retrieval | BM25 |
-| Retrieval fusion | Reciprocal Rank Fusion |
-| LLM integration | OpenAI API, Gemini API |
-| OCR | Tesseract |
-| Browser automation | Playwright |
-| Testing | Pytest |
-| Evaluation | Custom offline RAG evaluation harness |
+- **Language:** Python
+- **Frontend:** React, Vite, JavaScript
+- **Backend:** FastAPI, Uvicorn
+- **Database:** PostgreSQL, SQLAlchemy
+- **Vector database:** Qdrant (local persistent storage)
+- **Embeddings:** FastEmbed
+- **Sparse retrieval:** BM25
+- **Retrieval fusion:** Reciprocal Rank Fusion
+- **LLM providers:** Gemini, OpenRouter, OpenAI
+- **Document processing:** pypdf, PyMuPDF, python-docx, openpyxl, BeautifulSoup
+- **OCR:** Tesseract / pytesseract where applicable
+- **Testing:** Pytest
 
 ## Project Structure
 
 ```text
-Multi_RAG/
+multilingual-rag-main/
+│
 ├── backend/
 │   └── app/
-│       ├── auth/
-│       ├── browser/
-│       ├── conversations/
-│       ├── core/
-│       ├── db/
-│       ├── documents/
-│       ├── llm/
-│       ├── rag/
-│       ├── security/
-│       ├── voice/
-│       └── main.py
-├── frontend/
-│   ├── app.py
-│   └── api_client.py
-├── evaluation/
-│   └── rag_eval.py
-├── tests/
+│       ├── auth/              # Registration, login, authentication
+│       ├── browser/           # Browser automation endpoints and service
+│       ├── conversations/     # Conversation history endpoints
+│       ├── core/              # Application configuration and language helpers
+│       ├── db/                # SQLAlchemy models, database session, initialization
+│       ├── documents/         # File extraction and knowledge-base ingestion
+│       ├── interviews/        # Resume parsing, interview generation and evaluation
+│       ├── llm/               # LLM provider integration
+│       ├── rag/               # Embeddings, Qdrant retrieval and RAG logic
+│       ├── security/          # Security middleware
+│       ├── voice/             # Voice-related endpoints
+│       └── main.py            # FastAPI application entry point
+│
+├── frontend-react/
+│   ├── src/
+│   │   ├── main.jsx           # React application
+│   │   └── style.css          # Frontend styles
+│   ├── index.html
+│   └── package.json
+│
+├── frontend/                  # Original Streamlit assistant frontend
+├── evaluation/                # RAG evaluation utilities
+├── tests/                     # Automated tests
+├── migrations/                # SQL migration scripts
+├── screenshots/               # Project screenshots
 ├── requirements.txt
-├── .env.example
+├── .env.example               # Environment variable template
+├── .gitignore
+├── README.md
+├── README_INTERNSHIP.md
+├── DEMO_SCRIPT.md
 ├── DEPLOYMENT.md
 ├── start_backend.bat
 └── start_frontend.bat
 ```
 
-## Local Installation
+## Prerequisites
 
-### Prerequisites
+Install the following before running the application:
 
-- Python and pip
-- PostgreSQL
-- Git
-- Tesseract OCR for scanned documents
-- Google Chrome for supported browser automation
-- At least one configured LLM provider
+1. **Python 3.11**
+2. **Node.js and npm** (for the React frontend)
+3. **PostgreSQL**
+4. **Git**
+5. An API key for at least one configured LLM provider:
+   - Gemini
+   - OpenRouter
+   - OpenAI
+
+Optional, depending on the features you use:
+
+- Tesseract OCR for scanned-document OCR.
+- A supported browser installation for browser automation.
+
+## Local Setup on Windows
+
+Run the commands from the repository root directory (the directory containing `requirements.txt`).
 
 ### 1. Clone the repository
 
-```bat
-git clone https://github.com/KarunkumarAI/multilingual-rag.git
-cd multilingual-rag
+```cmd
+git clone https://github.com/KarunkumarAI/AI-Interviewer-Platform.git
+cd AI-Interviewer-Platform
 ```
 
-### 2. Create a virtual environment
+If the GitHub repository contains the project inside a subdirectory, first open the directory that contains `requirements.txt` and `backend/`.
 
-```bat
+### 2. Create and activate a Python virtual environment
+
+```cmd
 py -3.11 -m venv venv
 venv\Scripts\activate
 ```
 
-### 3. Install dependencies
+### 3. Install Python dependencies
 
-```bat
+```cmd
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment variables
+### 4. Install frontend dependencies
 
-```bat
+Open a terminal at the repository root and run:
+
+```cmd
+cd frontend-react
+npm install
+cd ..
+```
+
+### 5. Create the environment file
+
+```cmd
 copy .env.example .env
 ```
 
-Edit `.env` and supply your PostgreSQL connection URL, JWT secret, and the API keys required by your selected LLM provider.
+Open `.env` in an editor and configure the database credentials, JWT secret, and at least one LLM provider API key.
 
-The backend configuration uses `RAG_DATABASE_URL` and `RAG_JWT_SECRET`.
+See [Environment Configuration](#environment-configuration).
 
-Never commit `.env`, production credentials, or personal document data.
+### 6. Create the PostgreSQL database
 
-### 5. Initialize PostgreSQL
+Create a PostgreSQL database and user, then set the matching connection string in `.env`.
 
-Create the database and database user required by your configuration, then run:
+Example connection-string format:
 
-```bat
+```env
+RAG_DATABASE_URL=postgresql+psycopg://YOUR_DB_USER:YOUR_DB_PASSWORD@localhost:5432/YOUR_DB_NAME
+```
+
+The database and user shown above are examples/placeholders. Replace them with the values configured in your PostgreSQL installation.
+
+### 7. Initialize database tables
+
+From the repository root, with the virtual environment activated:
+
+```cmd
 python -m backend.app.db.init_db
 ```
 
-### 6. Start the backend
+This creates tables defined by the current SQLAlchemy models. If you are upgrading an older database schema, review and apply the relevant SQL migration in `migrations/` before running the application.
 
-```bat
-python -m uvicorn backend.app.main:app --reload --port 8000
+## Environment Configuration
+
+The application reads configuration from a root-level `.env` file. Use `.env.example` as the template.
+
+| Variable | Purpose |
+|---|---|
+| `RAG_DATABASE_URL` | PostgreSQL SQLAlchemy connection URL |
+| `RAG_JWT_SECRET` | Secret used to sign authentication tokens |
+| `RAG_ACCESS_TOKEN_MINUTES` | Authentication token lifetime |
+| `LLM_PROVIDER` | Preferred provider: `gemini`, `openrouter`, or `openai` |
+| `LLM_FALLBACK_ENABLED` | Fallback configuration flag |
+| `GEMINI_API_KEY` | Gemini API key |
+| `GEMINI_MODEL` | Gemini model name |
+| `OPENROUTER_API_KEY` | OpenRouter API key |
+| `OPENROUTER_MODEL` | OpenRouter model name |
+| `OPENAI_API_KEY` | OpenAI API key |
+| `OPENAI_MODEL` | OpenAI model name |
+| `FRONTEND_ORIGIN` | Frontend origin setting |
+
+Configure at least one provider and a model supported by that provider. Provider availability, model names, quotas, and pricing can change.
+
+Example only:
+
+```env
+RAG_DATABASE_URL=postgresql+psycopg://YOUR_DB_USER:YOUR_DB_PASSWORD@localhost:5432/YOUR_DB_NAME
+RAG_JWT_SECRET=REPLACE_WITH_A_LONG_RANDOM_SECRET
+
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
+GEMINI_MODEL=gemini-2.0-flash
+
+OPENROUTER_API_KEY=
+OPENAI_API_KEY=
 ```
 
-Backend API documentation:
+Do not commit your real `.env` file or paste API keys into source code, screenshots, issue trackers, or public messages.
+
+## Running the Application
+
+Run the backend and frontend in separate terminals.
+
+### Terminal 1: Start the FastAPI backend
+
+From the repository root:
+
+```cmd
+venv\Scripts\activate
+python -m uvicorn backend.app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Backend base URL:
+
+http://localhost:8000
+
+Interactive API documentation:
 
 http://localhost:8000/docs
 
-### 7. Start the frontend
+Health endpoint:
 
-Open another CMD window, activate the virtual environment, and run:
+http://localhost:8000/health
 
-```bat
-python -m streamlit run frontend/app.py
+### Terminal 2: Start the React frontend
+
+From the repository root:
+
+```cmd
+cd frontend-react
+npm run dev
 ```
 
-Frontend:
+Open the Vite URL shown in the terminal. The default development URL is:
 
-http://localhost:8501
+http://localhost:5173
 
-## Multilingual Retrieval
+If the frontend needs a custom backend URL, configure `VITE_API_URL` in a local `frontend-react/.env` file, for example:
 
-The application supports:
-
-| Language | Code |
-|---|---|
-| English | `en` |
-| Kannada | `kn` |
-| Hindi | `hi` |
-| Telugu | `te` |
-
-Automatic language detection and manual language selection are supported.
-
-When changing the embedding model or Qdrant collection schema, previously ingested documents may need to be reprocessed to ensure compatible vector dimensions and representations.
-
-## Voice and OCR
-
-Voice capabilities include browser microphone capture, speech-to-text, and text-to-speech endpoints.
-
-For OCR on Windows, install Tesseract with the `eng`, `kan`, `hin`, and `tel` language data.
-
-Verify installation:
-
-```bat
-tesseract --version
-tesseract --list-langs
+```env
+VITE_API_URL=http://localhost:8000
 ```
 
-Normal PDF text extraction is attempted before OCR fallback.
+Keep local environment files out of Git.
 
-## Browser and YouTube Automation
+## Using the Application
 
-The application includes authenticated browser actions powered by Playwright.
+The normal interview workflow is:
 
-Supported actions include opening permitted public URLs, Google searches, YouTube searches, first-result playback, and pause/resume controls.
+1. Open the React application in your browser.
+2. Register with an email address and password, then log in.
+3. Select the target role: AI/ML Engineer or Backend Engineer.
+4. Upload the role-specific textbook or knowledge-base document and select the matching role category. Use `Shared` only for content intended to be available to both roles.
+5. Upload the candidate resume.
+6. Review the extracted resume text/profile as presented by the application.
+7. Start the interview.
+8. Read the generated technical question and submit an answer.
+9. Continue through the five-question interview.
+10. Review the final report, including answers, scores, feedback, and supporting evidence.
 
-Browser automation uses an isolated Chrome profile under `data/browser_profile`. URL validation blocks localhost, private, link-local, and reserved destinations.
+If no relevant role-matched or shared textbook content has been indexed for the account, question generation may fail with a message asking for knowledge-base content. Upload and index the relevant source document before starting the interview.
 
-## Testing and Evaluation
+## API Overview
 
-Run automated tests:
+The backend exposes interactive API documentation at `/docs`. The main interview endpoints are:
 
-```bat
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/auth/register` | Register a user |
+| `POST` | `/auth/login` | Log in and obtain an access token |
+| `GET` | `/auth/me` | Get the authenticated user |
+| `POST` | `/interviews/resume/parse` | Parse an uploaded resume |
+| `POST` | `/interviews` | Create an interview session and generate the first question |
+| `POST` | `/interviews/{session_id}/answers` | Submit and evaluate an answer; generate the next question when applicable |
+| `GET` | `/interviews/{session_id}/report` | Retrieve the interview report |
+| `POST` | `/documents/upload` | Upload and index a knowledge-base document |
+| `GET` | `/documents` | List the current user's documents |
+| `GET` | `/health` | Check backend health |
+| `GET` | `/health/db` | Check database connectivity |
+
+Interview and document endpoints require authentication where indicated by the API documentation. Use the **Authorize** control in Swagger UI to test authenticated endpoints.
+
+## Data Storage
+
+- **PostgreSQL** stores relational application data, including users, documents, interview sessions, questions, and answers.
+- **Qdrant local storage** stores dense and sparse knowledge-base vectors and their payload metadata under `data/qdrant/`.
+- Uploaded knowledge-base documents are associated with the authenticated user and a knowledge role.
+
+The local Qdrant data directory is runtime data and is excluded from normal Git tracking by `.gitignore`. After cloning the repository, create or populate the knowledge base by uploading the required source documents through the application.
+
+## Testing
+
+Run the existing automated tests from the repository root:
+
+```cmd
+venv\Scripts\activate
 pytest -q
 ```
 
-Run the offline evaluation harness:
+Run Python syntax compilation:
 
-```bat
-python -m evaluation.rag_eval
+```cmd
+python -m compileall -q backend evaluation tests
 ```
 
-The evaluation harness can run without an LLM API key. Generating production RAG answers requires a configured LLM provider.
+The tests cover selected application areas. Passing unit tests does not replace end-to-end testing with PostgreSQL, a configured LLM provider, an indexed knowledge base, and the React frontend.
 
-Tests cover areas including multilingual language handling, retrieval evidence checks, and browser URL security.
+### Recommended End-to-End Checks
 
-### Suggested Manual Validation
+- Register a new user and log in.
+- Upload a readable PDF resume and verify extracted text.
+- Upload a role-specific knowledge-base document.
+- Confirm that the document is indexed successfully.
+- Start an interview for the selected role.
+- Confirm that generated questions are relevant to the resume and retrieved source material.
+- Submit answers and verify evaluation feedback.
+- Complete the interview and inspect the report.
+- Restart the backend and verify that relational records persist.
+- Confirm that the knowledge base can be queried after restart.
 
-- Upload a document and ask grounded questions.
-- Repeat questions in all four supported languages.
-- Ask questions not supported by the document and check abstention behavior.
-- Verify that answers include appropriate citations.
-- Test authentication and conversation persistence.
-- Test OCR with scanned documents.
-- Test voice input/output and browser automation.
+## Troubleshooting
 
-## Deployment Status
+### Backend cannot connect to PostgreSQL
 
-The project currently supports **local execution using FastAPI, Streamlit, and PostgreSQL**.
+- Confirm that the PostgreSQL service is running.
+- Verify the database name, username, password, host, and port in `RAG_DATABASE_URL`.
+- Confirm that the database exists and the configured user has permission to access it.
 
-Cloud hosting, production monitoring, and externally accessible deployment remain future improvements. See `DEPLOYMENT.md` for additional deployment notes.
+### LLM provider errors
 
-## Future Improvements
+- Confirm that the selected provider's API key is present in `.env`.
+- Check that the configured model name is available to your account.
+- Check provider quota, billing, and rate limits.
+- Restart the backend after changing environment variables.
 
-- Cloud deployment and production observability
-- Expanded multilingual retrieval evaluation
-- Automated retrieval-quality and citation metrics
-- Performance and latency benchmarking
-- Improved query-repair strategies
-- CI/CD integration
+### No textbook evidence found
 
-## Repository
+- Upload a supported textbook/document file.
+- Select the correct knowledge role during upload.
+- Confirm the upload/indexing status is successful.
+- Start the interview using the same user account that uploaded the document.
+- Ensure the document contains extractable text.
 
-GitHub: https://github.com/KarunkumarAI/multilingual-rag
+### Resume parsing fails
 
-**Project focus:** Retrieval-Augmented Generation, multilingual NLP, evidence-grounded LLM applications, retrieval reliability, and AI backend engineering.
+- Use a readable PDF or supported text file.
+- Check that the PDF contains selectable text or that OCR is configured for scanned pages.
+- Ensure the resume file is within the backend's 8 MB limit.
 
-## Application Screenshots
+### React cannot connect to the backend
 
-### Multilingual Document Question Answering
-![Multilingual RAG](screenshots/Multilingual%20RAG%20response.png)
+- Confirm the backend is running at `http://localhost:8000`.
+- Check the browser developer console for network or CORS errors.
+- If using a custom backend URL, verify `VITE_API_URL` and restart the Vite development server.
 
-### Persistent Conversation History
-![Conversation History](screenshots/Conversation%20history.png)
+### Frontend dependency errors
 
-### Voice-Enabled Knowledge RAG
-![Voice Interface](screenshots/Knowledge%20RAG%20and%20voice%20input.png)
+From `frontend-react/`, run:
+
+```cmd
+npm install
+npm run dev
+```
+
+## Security and Privacy Notes
+
+- Never commit `.env`, API keys, database passwords, access tokens, or private credentials.
+- `.env.example` contains placeholders and is intended to be committed.
+- Do not commit private candidate resumes, personal information, or confidential interview records.
+- Review all files before running `git add .`.
+- Configure production CORS, HTTPS, upload limits, access controls, data retention, and privacy requirements before public deployment.
+- AI-generated scores and feedback are assistive outputs and should not be used as the sole basis for employment decisions.
+
+## Limitations and Future Improvements
+
+Potential areas for further development include:
+
+- More comprehensive automated integration tests.
+- Database schema migration management for evolving deployments.
+- More configurable interview length and difficulty progression.
+- Stronger evaluation calibration and human-review workflows.
+- More detailed retrieval-quality and question-grounding metrics.
+- Production deployment configuration, monitoring, and rate limiting.
+- Additional role support and knowledge-base management features.
+
